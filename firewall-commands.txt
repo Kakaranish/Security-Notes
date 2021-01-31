@@ -1,0 +1,153 @@
+---  Konfiguracja logowania  ---------------------------------------------------
+
+$ set system syslog file TRAFFIC-LOG user any
+$ set system syslog file TRAFFIC-LOG match RT_FLOW
+$ set security log mode event
+
+---  Konfiguracja interfejsow  -------------------------------------------------
+
+$ set interfaces ge-0/0/1 vlan-tagging
+
+$ set interfaces ge-0/0/1 unit {X}00 vlan-id {X}00
+$ set interfaces ge-0/0/1 unit {X}00 family inet address 1.1.{X}.10/28
+
+$ set interfaces ge-0/0/1 unit {X}01 vlan-id {X}01
+$ set interfaces ge-0/0/1 unit {X}01 family inet address 192.168.{X}.1/24
+
+$ set interfaces ge-0/0/1 unit {X}02 vlan-id {X}02
+$ set interfaces ge-0/0/1 unit {X}02 family inet address 192.168.100.1/24
+
+$ set interfaces ge-0/0/1 unit {X}03 vlan-id {X}03
+$ set interfaces ge-0/0/1 unit {X}03 family inet address 10.7.{X}.1/24
+
+$ set interfaces ge-0/0/1 unit {X}04 vlan-id {X}04
+$ set interfaces ge-0/0/1 unit {X}04 family inet address 10.10.{X}.1/24
+
+$ set interfaces ge-0/0/1 unit {X}05 vlan-id {X}05
+$ set interfaces ge-0/0/1 unit {X}05 family inet address 192.168.200.1/24
+
+$ set interfaces ge-0/0/1 unit {X}99 vlan-id {X}99
+$ set interfaces ge-0/0/1 unit {X}99 family inet address 1.50.{X}.2/28
+
+--- Konfiguracja stref  --------------------------------------------------------
+
+$ set security zones security-zone HR interfaces ge-0/0/1.{X}01
+$ set security zones security-zone HR host-inbound-traffic system-services ping
+
+$ set security zones security-zone PROGRAMMERS interfaces ge-0/0/1.{X}02
+$ set security zones security-zone PROGRAMMERS host-inbound-traffic system-services ping
+
+$ set security zones security-zone DMZ interfaces ge-0/0/1.{X}03
+$ set security zones security-zone DMZ interfaces ge-0/0/1.{X}04
+$ set security zones security-zone DMZ interfaces ge-0/0/1.{X}05
+
+$ set security zones security-zone INTERNET interfaces ge-0/0/1.{X}00
+$ set security zones security-zone INTERNET interfaces ge-0/0/1.{X}99
+
+---  Konfiguracja address booków  ----------------------------------------------
+
+$ set security address-book HR-ADDRESS-BOOK address HR-1 192.168.{X}.10/32
+$ set security address-book HR-ADDRESS-BOOK address HR-2 192.168.{X}.11/32
+$ set security address-book HR-ADDRESS-BOOK attach zone HR
+
+$ set security address-book PROGRAMMERS-ADDRESS-BOOK address PROGRAMMER-1 192.168.100.20/32
+$ set security address-book PROGRAMMERS-ADDRESS-BOOK address PROGRAMMER-2 192.168.100.21/32
+$ set security address-book PROGRAMMERS-ADDRESS-BOOK attach zone PROGRAMMERS
+
+$ set security address-book DMZ-ADDRESS-BOOK address DMZ-SERVICE-1 10.7.{X}.15/32
+$ set security address-book DMZ-ADDRESS-BOOK address DMZ-SERVICE-2 10.10.{X}.10/32
+$ set security address-book DMZ-ADDRESS-BOOK attach zone DMZ
+
+$ set security address-book INTERNET-ADDRESS-BOOK address INTERNET-1 70.70.1.10/32
+$ set security address-book INTERNET-ADDRESS-BOOK address INTERNET-2 90.90.1.50/32
+$ set security address-book INTERNET-ADDRESS-BOOK address INTERNET-3 50.10.{X}.100/32
+$ set security address-book INTERNET-ADDRESS-BOOK address INTERNET-4 200.100.{X}.150/32
+$ set security address-book INTERNET-ADDRESS-BOOK address INTERNET-KOMP1 1.1.{X}.10/32
+$ set security address-book INTERNET-ADDRESS-BOOK address-set INTERNET-ADDR-GROUP address INTERNET-1
+$ set security address-book INTERNET-ADDRESS-BOOK address-set INTERNET-ADDR-GROUP address INTERNET-2
+$ set security address-book INTERNET-ADDRESS-BOOK attach zone INTERNET
+
+---  Konfiguracja polityk  -----------------------------------------------------
+
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-PING match source-address any-ipv4
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-PING match destination-address any-ipv4
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-PING match junos-icmp-ping
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-PING then permit
+
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-TELNET match source-address HR-1
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-TELNET match destination-address INTERNET-ADDR-RANGE-1
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-TELNET match application junos-telnet
+$ set security policies from-zone HR to-zone INTERNET policy HR-TO-INTERNET-TELNET then permit
+
+$ set security policies from-zone HR to-zone PROGRAMMERS policy HR-TO-PROGRAMMERS-SSH match source-address any-ipv4
+$ set security policies from-zone HR to-zone PROGRAMMERS policy HR-TO-PROGRAMMERS-SSH match destination-address PROGRAMMER-2
+$ set security policies from-zone HR to-zone PROGRAMMERS policy HR-TO-PROGRAMMERS-SSH match application junos-ssh
+$ set security policies from-zone HR to-zone PROGRAMMERS policy HR-TO-PROGRAMMERS-SSH then permit
+
+$ set security policies from-zone PROGRAMMER to-zone INTERNET policy PROGRAMMERS-TO-INTERNET-HTTPS match source-address any-ipv4
+$ set security policies from-zone PROGRAMMER to-zone INTERNET policy PROGRAMMERS-TO-INTERNET-HTTPS match destination-address INTERNET-ADDR-GROUP
+$ set security policies from-zone PROGRAMMER to-zone INTERNET policy PROGRAMMERS-TO-INTERNET-HTTPS match application junos-https
+$ set security policies from-zone PROGRAMMER to-zone INTERNET policy PROGRAMMERS-TO-INTERNET-HTTPS then permit
+
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-PING match source-address any-ipv4
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-PING match destination-address DMZ-SERVICE-1
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-PING match application junos-icmp-ping
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-PING then permit
+
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-HTTP match source-address any-ipv4
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-HTTP match destination-address DMZ-SERVICE-1
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-HTTP match application junos-http
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-HTTP match application APPLICATION-8080
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-HTTP then permit
+$ set applications application APPLICATION-8080 protocol tcp
+$ set applications application APPLICATION-8080 destination-port 8080
+
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-TELNET match source-address INTERNET-KOMP1
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-TELNET match destination-address DMZ-SERVICE-2
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-TELNET match application junos-telnet
+$ set security policies from-zone INTERNET to-zone DMZ policy INTERNET-TO-DMZ-TELNET then permit
+
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET match source-address DMZ-SERVICE-2
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET match destination-address INTERNET-3
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET match application junos-telnet
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET then permit
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET then log session-init
+$ set security policies from-zone DMZ to-zone INTERNET policy DMZ-TO-INTERNET-TELNET then log session-close
+
+---  Konfiguracja source NAT  --------------------------------------------------
+
+$ set security nat source pool MAPPED-HR2-POOL address 125.125.{X}.11/32
+
+$ set security nat source rule-set HR-TO-INTERNET from zone HR
+$ set security nat source rule-set HR-TO-INTERNET to zone INTERNET
+$ set security nat source rule-set HR-TO-INTERNET rule MAP-HR-2 match source-address 192.168.{X}.11/32
+$ set security nat source rule-set HR-TO-INTERNET rule MAP-HR-2 then source-nat pool MAPPED-HR-2-POOL
+$ set security nat source rule-set HR-TO-INTERNET rule MAP-ANY-HR match source-address 192.168.{X}.0/24
+$ set security nat source rule-set HR-TO-INTERNET rule MAP-HR-2 then source-nat interface
+
+$ set security nat source rule-set PROGRAMMERS-TO-INTERNET from zone PROGRAMMERS
+$ set security nat source rule-set PROGRAMMERS-TO-INTERNET to zone INTERNET
+$ set security nat source rule-set PROGRAMMERS-TO-INTERNET rule MAP-ANY-PROGRAMMER match source-address 192.168.100.0/24
+$ set security nat source rule-set PROGRAMMERS-TO-INTERNET rule MAP-ANY-PROGRAMMER match then source-nat interface
+
+---  Konfiguracja destination NAT  ---------------------------------------------
+
+$ set security nat destination pool MAPPED-DMZ-SERVICE-1-POOL address address 10.7.{X}.15/32
+$ set security nat destination pool MAPPED-DMZ-SERVICE-1-WITH-PORT-POOL address 10.7.{X}.15/32 port 8080
+
+$ set security nat destination rule-set INTERNET-TO-DMZ from zone INTERNET
+$ set security nat destination rule-set INTERNET-TO-DMZ rule MAP-DMZ-SERVICE-1 match destination-address 125.125.{X}.100/32 
+$ set security nat destination rule-set INTERNET-TO-DMZ rule MAP-DMZ-SERVICE-1 then destination-nat pool MAPPED-DMZ-SERVICE-1-POOL
+$ set security nat destination rule-set INTERNET-TO-DMZ rule MAP-DMZ-SERVICE-1-WITH-PORT match destination-address 125.125.{X}.100/32 
+$ set security nat destination rule-set INTERNET-TO-DMZ rule MAP-DMZ-SERVICE-1-WITH-PORT match destination-port 80
+$ set security nat destination rule-set INTERNET-TO-DMZ rule MAP-DMZ-SERVICE-1-WITH-PORT then destination-nat pool MAPPED-DMZ-SERVICE-1-WITH-PORT-POOL
+
+--- Konfiguracja static NAT  ---------------------------------------------------
+
+$ set security nat static rule-set INTERNET-TO-DMZ-STATIC from zone INTERNET
+$ set security nat static rule-set INTERNET-TO-DMZ-STATIC rule MAP-DMZ-SERVICE-2 match destination-address 125.125.{X}.101/32
+$ set security nat static rule-set INTERNET-TO-DMZ-STATIC rule MAP-DMZ-SERVICE-2 then static-nat prefix 10.10.{X}.10/32
+
+---  Misc  ---------------------------------------------------------------------
+
+$ set routing-options static route 0.0.0.0/0 next-hop 1.50.{X}.1

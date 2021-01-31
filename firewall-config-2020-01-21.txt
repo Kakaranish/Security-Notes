@@ -1,0 +1,386 @@
+system {
+    ...
+    services {
+        telnet;
+    }
+    host-name XXX;
+    syslog {
+        file TRAFFIC-LOG {
+            user any;
+            match RT_FLOW;
+        }
+    }
+}
+security {
+    log {
+        mode event;
+    }
+    address-book {
+        HR-ADDRESS-BOOK {
+            address HR-1 192.168.{X}.10/32;
+            address HR-2 192.168.{X}.11/32;
+            attach {
+                zone HR;
+            }
+        }
+        INTERNET-ADDRESS-BOOK {
+            address INTERNET-ADDR-RANGE-1 {
+                range-address 1.1.{X}.5 {
+                    to {
+                        1.1.{X}.11;
+                    }
+                }
+            }
+            address INTERNET-KOMP1 1.1.{X}.10/32;
+            address INTERNET-1 70.70.1.10/32;
+            address INTERNET-2 90.90.1.50/32;
+            address INTERNET-3 50.10.{X}.100/32;
+            address INTERNET-4 200.100.{X}.150/32;
+            address-set INTERNET-ADDR-GROUP {
+                address INTERNET-1;
+                address INTERNET-2;
+            }
+            attach {
+                zone INTERNET;
+            }
+        }
+        PROGRAMMERS-ADDRESS-BOOK {
+            address PROGRAMMER-1 192.168.100.20/32;
+            address PROGRAMMER-2 192.168.100.21/32;
+            attach {
+                zone PROGRAMMERS;
+            }
+        }
+        DMZ-ADDRESS-BOOK {
+            address DMZ-SERVICE-1 10.7.{X}.15/32;
+            address DMZ-SERVICE-2 10.10.{X}.10/32;
+            attach {
+                zone DMZ;
+            }
+        }
+    }
+    nat {
+        source {
+            pool MAPPED-HR-2-POOL {
+                address {
+                    125.125.{X}.11/32;
+                }
+            }
+            rule-set HR-TO-INTERNET {
+                from zone HR;
+                to zone INTERNET;
+                rule MAP-HR-2 {
+                    match {
+                        source-address 192.168.{X}.11/32;
+                    }
+                    then {
+                        source-nat {
+                            pool {
+                                MAPPED-HR-2-POOL;
+                            }
+                        }
+                    }
+                }
+                rule MAP-ANY-HR {
+                    match {
+                        source-address 192.168.{X}.0/24;
+                    }
+                    then {
+                        source-nat {
+                            interface;
+                        }
+                    }
+                }
+            }
+            rule-set PROGRAMMERS-TO-INTERNET {
+                from zone PROGRAMMERS;
+                to zone INTERNET;
+                rule MAP-ANY-PROGRAMMER {
+                    match {
+                        source-address 192.168.100.0/24;
+                    }
+                    then {
+                        source-nat {
+                            interface;
+                        }
+                    }
+                }
+            }
+        }
+        destination {
+            pool MAPPED-DMZ-SERVICE-1-WITH-PORT-POOL {
+                address 10.7.{X}.15/32 port 8080;
+            }
+            pool MAPPED-DMZ-SERVICE-1-POOL {
+                address 10.7.{X}.15/32;
+            }
+            rule-set INTERNET-TO-DMZ {
+                from zone INTERNET;
+                rule MAP-DMZ-SERVICE-1-WITH-PORT {
+                    match {
+                        destination-address 125.125.{X}.100/32;
+                        destination-port {
+                            80;
+                        }
+                    }
+                    then {
+                        destination-nat {
+                            pool {
+                                MAPPED-DMZ-SERVICE-1-WITH-PORT-POOL;
+                            }
+                        }
+                    }
+                }
+                rule MAP-DMZ-SERVICE-1 {
+                    match {
+                        destination-address 125.125.{X}.100/32;
+                    }
+                    then {
+                        destination-nat {
+                            pool {
+                                MAPPED-DMZ-SERVICE-1-POOL;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        static {
+            rule-set INTERNET-TO-DMZ-STATIC {
+                from zone INTERNET;
+                rule MAP-DMZ-SERVICE-2 {
+                    match {
+                        destination-address 125.125.{X}.101/32;
+                    }
+                    then {
+                        static-nat {
+                            prefix {
+                                10.10.{X}.10/32;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    policies {
+        from-zone HR to-zone INTERNET {
+            policy HR-TO-INTERNET-PING {
+                match {
+                    source-address any-ipv4;
+                    destination-address any-ipv4;
+                    application junos-icmp-ping;
+                }
+                then {
+                    permit;
+                }
+            }
+            policy HR-TO-INTERNET-TELNET {
+                match {
+                    source-address HR-1;
+                    destination-address INTERNET-ADDR-RANGE-1;
+                    application junos-telnet;
+                }
+                then {
+                    permit;
+                }
+            }
+        }
+        from-zone HR to-zone PROGRAMMERS {
+            policy HR-TO-PROGRAMMERS-SSH {
+                match {
+                    source-address any-ipv4;
+                    destination-address PROGRAMMER-2;
+                    application [ junos-ssh junos-icmp-ping ];
+                }
+                then {
+                    permit;
+                }
+            }
+        }
+        from-zone PROGRAMMERS to-zone INTERNET {
+            policy PROGRAMMERS-TO-INTERNET-HTTPS {
+                match {
+                    source-address any-ipv4;
+                    destination-address INTERNET-ADDR-GROUP;
+                    application junos-https;
+                }
+                then {
+                    permit;
+                }
+            }
+        }
+        from-zone INTERNET to-zone DMZ {
+            policy INTERNET-TO-DMZ-PING {
+                match {
+                    source-address any-ipv4;
+                    destination-address DMZ-SERVICE-1;
+                    application junos-icmp-ping;
+                }
+                then {
+                    permit;
+                }
+            }
+            policy INTERNET-TO-DMZ-HTTP {
+                match {
+                    source-address any-ipv4;
+                    destination-address DMZ-SERVICE-1;
+                    application [ junos-http APPLICATION-8080 ];
+                }
+                then {
+                    permit;
+                }
+            }
+            policy INTERNET-TO-DMZ-TELNET {
+                match {
+                    source-address INTERNET-KOMP1;
+                    destination-address DMZ-SERVICE-2;
+                    application junos-telnet;
+                }
+                then {
+                    permit;
+                }
+            }
+        }
+        from-zone DMZ to-zone INTERNET {
+            policy DMZ-TO-INTERNET-TELNET {
+                match {
+                    source-address DMZ-SERVICE-2;
+                    destination-address INTERNET-3;
+                    application junos-telnet;
+                }
+                then {
+                    permit;
+                    log {
+                        session-init;
+                        session-close;
+                    }
+                }
+            }
+        }
+    }
+    zones {
+        functional-zone management {
+            interfaces {
+                ge-0/0/0.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            telnet;
+                            ping;
+                        }
+                    }
+                }
+            }
+        }
+        security-zone INTERNET {
+            interfaces {
+                ge-0/0/1.{X}00;
+                ge-0/0/1.{X}99;
+            }
+        }
+        security-zone HR {
+            host-inbound-traffic {
+                system-services {
+                    ping;
+                }
+            }
+            interfaces {
+                ge-0/0/1.{X}01;
+            }
+        }
+        security-zone PROGRAMMERS {
+            host-inbound-traffic {
+                system-services {
+                    ping;
+                }
+            }
+            interfaces {
+                ge-0/0/1.{X}02;
+            }
+        }
+        security-zone DMZ {
+            interfaces {
+                ge-0/0/1.{X}03;
+                ge-0/0/1.{X}04;
+                ge-0/0/1.{X}05;
+            }
+        }
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        description "MGMT INTERFACE - DO NO DELETE";
+        unit 0 {
+            family inet {
+                address 172.10.0.106/24;
+            }
+        }
+    }
+    ge-0/0/1 {
+        vlan-tagging;
+        unit {X}00 {
+            vlan-id {X}00;
+            family inet {
+                address 1.1.{X}.1/28;
+            }
+        }
+        unit {X}01 {
+            vlan-id {X}01;
+            family inet {
+                address 192.168.{X}.1/24;
+            }
+        }
+        unit {X}02 {
+            vlan-id {X}02;
+            family inet {
+                address 192.168.100.1/24;
+            }
+        }
+        unit {X}03 {
+            vlan-id {X}03;
+            family inet {
+                address 10.7.{X}.1/24;
+            }
+        }
+        unit {X}04 {
+            vlan-id {X}04;
+            family inet {
+                address 10.10.{X}.1/24;
+            }
+        }
+        unit {X}05 {
+            vlan-id {X}05;
+            family inet {
+                address 192.168.200.1/24;
+            }
+        }
+        unit {X}99 {
+            vlan-id {X}99;
+            family inet {
+                address 1.50.{X}.2/28;
+            }
+        }
+    }
+}
+routing-instances {
+    MANAGEMENT {
+        interface ge-0/0/0.0;
+        instance-type virtual-router;
+        routing-options {
+            static {
+                route 0.0.0.0/0 next-hop 172.10.0.1;
+            }
+        }
+    }
+}
+applications {
+    application APPLICATION-8080 {
+        protocol tcp;
+        destination-port 8080;
+    }
+}
+routing-options {
+    static {
+        route 0.0.0.0/0 next-hop 1.50.{X}.1;
+    }
+}
